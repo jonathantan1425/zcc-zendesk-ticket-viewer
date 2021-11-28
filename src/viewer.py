@@ -1,7 +1,7 @@
-import getpass
 import requests
 import json
 import time
+import pandas as pd
 
 def get_credentials(credentials_source):
     '''
@@ -19,7 +19,7 @@ def get_credentials(credentials_source):
 
     # prompt user to modify user_credentials.json if invalid user credentials
     if not validate_credentials(subdomain, user_email, password):
-        quit
+        exit('Exiting Ticket Viewer...')
 
     return subdomain, user_email, password
 
@@ -47,15 +47,39 @@ def validate_credentials(subdomain, email, password):
         print(f'Authentication failed, status code: {resp.status_code}')
         return False
 
-def get_tickets(tickets='All'):
+def get_tickets(subdomain, email, password, tickets):
     '''
-    Returns all tickets as requested
+    Calls Zendesk Tickets API and returns tickets as requested
     
     Args:
-        tickets(str): All tickets by default, else replaced by ticket_id for specific ticket
+        tickets(str): 'all' for all tickets, 'ticket_id' for specific ticket
     '''
+    # TODO
 
-    pass
+    if tickets == 'all':
+        api_url = f'https://{subdomain}.zendesk.com/api/v2/tickets.json'
+    else:
+        api_url = f'https://{subdomain}.zendesk.com/api/v2/tickets/{tickets}.json'
+    headers = {'Accept': 'application/json'}
+    results = []
+    while api_url:
+        resp = requests.get(api_url, auth=(email, password), headers=headers)
+        if resp.status_code == 429:
+            time.sleep(int(resp.headers['retry-after']))
+            continue
+        elif resp.status_code != 200:
+            exit(f'Authentication failed, status code: {resp.status_code}. Exiting Ticket Viewer...')
+        page_data = resp.json()
+        results.append(page_data)
+        if 'next_page' in page_data:
+            api_url = page_data['next_page']
+        else:
+            break
+    return results
+
+def process_api_fields(api_results):
+
+    # TODO select api fields to keep and condense into list format    
 
 def cli_interface():
     '''
@@ -72,12 +96,34 @@ def cli_interface():
     user_input = input().lower()
     while user_input != 'quit':
         # show view menu if input = menu
-            # 'all' for all tickets
-            # 'select x' for ticket with x ticket id
+        if user_input == 'menu':
+            print('Available user commands:')
+            print('\tquit:\t\tExit the ticket viewer')
+            print('\tall:\t\tView all tickets associated with subdomain and email')
+            print('\tselect x:\tView ticket details of ticket with ticket_id = x')
+
         # request all tickets if input = all
+        elif user_input == 'all':
+            tickets = get_tickets(subdomain, user_email, password, tickets='all')
+            # print(tickets)
+            tickets_df = pd.json_normalize(tickets)
+            tickets_df.to_csv('tickets.csv', header=True, encoding='utf-8')
+            print(tickets_df.head())
             # handle pagination
             # output all tickets in pages of 25 when count > 25
-        # request specific ticket detail if input = select x
 
+        # request specific ticket detail if input = select x
+        elif user_input[0:7] == 'select ':
+            select_split = user_input.split(' ')
+            ticket_id = select_split[1]
+            if len(select_split) != 2 or not ticket_id.isdigit():
+                print('select command understood but ticket_id value is invalid, please try again')
+            else:
+                tickets = get_tickets(subdomain, user_email, password, tickets=ticket_id)
+                # print(tickets)
+
+        else:
+            print('User command not recognised, please try again.')
+        user_input = input().lower()
 if __name__ == "__main__":
     cli_interface()
