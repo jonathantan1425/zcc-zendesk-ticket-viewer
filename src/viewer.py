@@ -1,7 +1,8 @@
-import requests
 import json
+import requests
 import shutil
 import time
+import pandas as pd
 
 def get_credentials(credentials_source):
     '''
@@ -69,7 +70,10 @@ def get_tickets(subdomain, email, password, tickets):
             print(f'API request trouble encountered, status code: {resp.status_code}. Please try again.')
             return False
         page_data = resp.json()
-        results.append(page_data)
+        if tickets != 'all':
+            print(page_data)
+            return page_data['ticket']
+        results.extend(page_data['tickets'])
         if 'next_page' in page_data:
             api_url = page_data['next_page']
         else:
@@ -77,25 +81,44 @@ def get_tickets(subdomain, email, password, tickets):
     return results
 
 def process_all_tickets(api_results):
-
     # TODO select api fields to keep and condense into list format
-    pass
+    tickets_df = pd.json_normalize(api_results)
+    tickets_df = tickets_df[['id', 'subject', 'priority', 'status', 'submitter_id', 'assignee_id', 'organization_id']].set_index('id')
+    return tickets_df
+
+def display_pages_25(tickets_df):
+    # TODO clean pagination
+    max_rows = len(tickets_df)
+    print(max_rows)
+    print(tickets_df.head(25))
+    counter = 25
+    navigation = input("Type '<' or '>' to navigate between pages, 'q' to end ticket viewing.").lower()
+    while navigation != 'q':
+        if navigation == '>' and counter < max_rows:
+            print(tickets_df.iloc[counter:counter+25], end='\r')
+            counter += 25
+        elif navigation == '<' and counter >= 25:
+            print(tickets_df.iloc[counter-25:counter], end='\r')
+            counter -= 25
+        navigation = input()
+
+
+
 
 def process_select_ticket(api_results):
     '''
     Extracts (id, subject, description, priority, status, submitter_id, assignee_id, organization_id) from API results of selected ticket and prints output
     '''
     divider = '-' * min(shutil.get_terminal_size().columns, 50)
-    extracted_results = api_results[0]['ticket']
 
-    id = extracted_results['id']
-    subject = extracted_results['subject']
-    description = extracted_results['description']
-    priority = extracted_results['priority']
-    status = extracted_results['status']
-    submitter_id = extracted_results['submitter_id']
-    assignee_id = extracted_results['assignee_id']
-    organization_id = extracted_results['organization_id']
+    id = api_results['id']
+    subject = api_results['subject']
+    description = api_results['description']
+    priority = api_results['priority']
+    status = api_results['status']
+    submitter_id = api_results['submitter_id']
+    assignee_id = api_results['assignee_id']
+    organization_id = api_results['organization_id']
 
     print(divider)
     print(f'Ticket ID: {id}\tSubject: {subject}')
@@ -133,7 +156,7 @@ def interface_tool():
     3. Returns appropriate user request based on input
     '''
 
-    credentials_source = 'user_credentials_jon.json'
+    credentials_source = 'user_credentials.json'
     subdomain, user_email, password = get_credentials(credentials_source)
     # prompt user to modify user_credentials.json if invalid user credentials
     if not validate_credentials(subdomain, user_email, password):
@@ -152,12 +175,10 @@ def interface_tool():
         # request all tickets if input = all
         elif user_input == 'all':
             tickets = get_tickets(subdomain, user_email, password, tickets='all')
-            # print(tickets)
-            tickets_df = pd.json_normalize(tickets)
-            tickets_df.to_csv('tickets.csv', header=True, encoding='utf-8')
-            print(tickets_df.head())
+            tickets_df = process_all_tickets(tickets)
             # handle pagination
             # output all tickets in pages of 25 when count > 25
+            display_pages_25(tickets_df)
 
         # request specific ticket detail if input == 'select x'
         elif user_input[0:7] == 'select ':
