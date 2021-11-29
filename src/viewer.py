@@ -1,11 +1,12 @@
 import requests
 import json
+import shutil
 import time
 import pandas as pd
 
 def get_credentials(credentials_source):
     '''
-    Assigns users' credentials (subdomain, email, password) to local variables and checks validity
+    Assigns users' credentials (subdomain, email, password) to local variables
 
     Args:
         credentials_source(str): filename of user credentials (.json format)
@@ -16,10 +17,6 @@ def get_credentials(credentials_source):
         subdomain = credentials_json['subdomain']
         user_email = credentials_json['email']
         password = credentials_json['password']
-
-    # prompt user to modify user_credentials.json if invalid user credentials
-    if not validate_credentials(subdomain, user_email, password):
-        exit('Exiting Ticket Viewer...')
 
     return subdomain, user_email, password
 
@@ -37,7 +34,7 @@ def validate_credentials(subdomain, email, password):
 
     # verify if email and password can be authenticated against API
     if resp.status_code == 429: # if rate limit reached, retry again
-        time.sleep(int(resp.headers['retry-after']))
+        time.sleep(int(resp.headers['retry-after']) + 1)
         resp = requests.get(api_url, auth=(email, password))
 
     if resp.status_code == 200:
@@ -64,11 +61,15 @@ def get_tickets(subdomain, email, password, tickets):
     results = []
     while api_url:
         resp = requests.get(api_url, auth=(email, password), headers=headers)
-        if resp.status_code == 429:
-            time.sleep(int(resp.headers['retry-after']))
+        if resp.status_code == 429: # catch rate limit exceeded, although normal usage should not exceed limit of 400/minute
+            print('rate limited')
+            time.sleep(int(resp.headers['retry-after']) + 1)
             continue
+        elif resp.status_code == 404: # API endpoint does not exist (usually for invalid ticket_id)
+            return None
         elif resp.status_code != 200:
-            exit(f'Authentication failed, status code: {resp.status_code}. Exiting Ticket Viewer...')
+            print(f'API request trouble encountered, status code: {resp.status_code}. Please try again.')
+            break
         page_data = resp.json()
         results.append(page_data)
         if 'next_page' in page_data:
@@ -77,9 +78,33 @@ def get_tickets(subdomain, email, password, tickets):
             break
     return results
 
-def process_api_fields(api_results):
+def process_all_tickets(api_results):
 
-    # TODO select api fields to keep and condense into list format    
+    # TODO select api fields to keep and condense into list format
+    pass
+
+def process_select_ticket(api_results):
+    '''
+    Extracts (id, subject, description, priority, status, submitter_id, assignee_id, organization_id) from API results of selected ticket and prints output
+    '''
+    divider = '-' * min(shutil.get_terminal_size().columns, 50)
+    extracted_results = api_results[0]['ticket']
+
+    id = extracted_results['id']
+    subject = extracted_results['subject']
+    description = extracted_results['description']
+    priority = extracted_results['priority']
+    status = extracted_results['status']
+    submitter_id = extracted_results['submitter_id']
+    assignee_id = extracted_results['assignee_id']
+    organization_id = extracted_results['organization_id']
+
+    print(divider)
+    print(f'Ticket ID: {id}\tSubject: {subject}')
+    print(f'Priority: {priority}\tStatus: {status}')
+    print(f'\n{description}\n')
+    print(f'Organization: {organization_id}\tSubmitted by: {submitter_id}\tAssigned to: {assignee_id}')
+    print(divider)
 
 def cli_interface():
     '''
@@ -91,9 +116,15 @@ def cli_interface():
 
     credentials_source = 'user_credentials.json'
     subdomain, user_email, password = get_credentials(credentials_source)
+    # prompt user to modify user_credentials.json if invalid user credentials
+    if not validate_credentials(subdomain, user_email, password):
+        exit('Exiting Ticket Viewer...')
+
+    # successful authorization    
     print(f'Welcome to Zendesk Ticket Viewer. You are currently connected to {subdomain} as {user_email}.')
-    print("Type 'menu' to view ticket options or 'quit' to exit the viewer")
-    user_input = input().lower()
+    print("Type 'menu' to view ticket options or 'quit' to exit the viewer\n")
+
+    user_input = input('>').lower()
     while user_input != 'quit':
         # show view menu if input = menu
         if user_input == 'menu':
@@ -117,13 +148,17 @@ def cli_interface():
             select_split = user_input.split(' ')
             ticket_id = select_split[1]
             if len(select_split) != 2 or not ticket_id.isdigit():
-                print('select command understood but ticket_id value is invalid, please try again')
+                print('Select command understood but ticket_id value is invalid. Please try again.')
             else:
                 tickets = get_tickets(subdomain, user_email, password, tickets=ticket_id)
-                # print(tickets)
+                if tickets == None:
+                    print('API endpoint unavailable, possibly due to invalid ticket_id. Please try again.')
+                else:
+                    process_select_ticket(tickets)
+
 
         else:
             print('User command not recognised, please try again.')
-        user_input = input().lower()
+        user_input = input('>').lower()
 if __name__ == "__main__":
     cli_interface()
