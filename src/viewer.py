@@ -2,7 +2,6 @@ import requests
 import json
 import shutil
 import time
-import pandas as pd
 
 def get_credentials(credentials_source):
     '''
@@ -51,7 +50,6 @@ def get_tickets(subdomain, email, password, tickets):
     Args:
         tickets(str): 'all' for all tickets, 'ticket_id' for specific ticket
     '''
-    # TODO
 
     if tickets == 'all':
         api_url = f'https://{subdomain}.zendesk.com/api/v2/tickets.json'
@@ -62,14 +60,14 @@ def get_tickets(subdomain, email, password, tickets):
     while api_url:
         resp = requests.get(api_url, auth=(email, password), headers=headers)
         if resp.status_code == 429: # catch rate limit exceeded, although normal usage should not exceed limit of 400/minute
-            print('rate limited')
+            print('Rate limited, reattempting shortly')
             time.sleep(int(resp.headers['retry-after']) + 1)
             continue
         elif resp.status_code == 404: # API endpoint does not exist (usually for invalid ticket_id)
-            return None
+            return False
         elif resp.status_code != 200:
             print(f'API request trouble encountered, status code: {resp.status_code}. Please try again.')
-            break
+            return False
         page_data = resp.json()
         results.append(page_data)
         if 'next_page' in page_data:
@@ -106,7 +104,28 @@ def process_select_ticket(api_results):
     print(f'Organization: {organization_id}\tSubmitted by: {submitter_id}\tAssigned to: {assignee_id}')
     print(divider)
 
-def cli_interface():
+def menu_action():
+    '''
+    Prints list of commands
+    '''
+    print('Available user commands:')
+    print('\tquit:\t\tExit the ticket viewer')
+    print('\tall:\t\tView all tickets associated with subdomain and email')
+    print('\tselect x:\tView ticket details of ticket with ticket_id = x')
+
+def load_select_ticket(user_command):
+    '''
+    Processes user_command when it starts with 'select ' and differentiates between valid and invalid ticket_id entry
+    '''
+    user_command = user_command.replace(" ","")
+    select_split = user_command.split('select')
+    ticket_id = select_split[1]
+    if len(select_split) != 2 or not ticket_id.isdigit():
+        print('Select command understood but ticket_id value is invalid. Please try again.')
+        return False
+    return int(ticket_id)
+
+def interface_tool():
     '''
     Presents CLI interface for Zendesk Ticket Viewer
     1. Gets user credentials from user_credentials.json
@@ -114,7 +133,7 @@ def cli_interface():
     3. Returns appropriate user request based on input
     '''
 
-    credentials_source = 'user_credentials.json'
+    credentials_source = 'user_credentials_jon.json'
     subdomain, user_email, password = get_credentials(credentials_source)
     # prompt user to modify user_credentials.json if invalid user credentials
     if not validate_credentials(subdomain, user_email, password):
@@ -128,10 +147,7 @@ def cli_interface():
     while user_input != 'quit':
         # show view menu if input = menu
         if user_input == 'menu':
-            print('Available user commands:')
-            print('\tquit:\t\tExit the ticket viewer')
-            print('\tall:\t\tView all tickets associated with subdomain and email')
-            print('\tselect x:\tView ticket details of ticket with ticket_id = x')
+            menu_action()
 
         # request all tickets if input = all
         elif user_input == 'all':
@@ -143,22 +159,19 @@ def cli_interface():
             # handle pagination
             # output all tickets in pages of 25 when count > 25
 
-        # request specific ticket detail if input = select x
+        # request specific ticket detail if input == 'select x'
         elif user_input[0:7] == 'select ':
-            select_split = user_input.split(' ')
-            ticket_id = select_split[1]
-            if len(select_split) != 2 or not ticket_id.isdigit():
-                print('Select command understood but ticket_id value is invalid. Please try again.')
-            else:
+            ticket_id = load_select_ticket(user_input)
+            if ticket_id:
                 tickets = get_tickets(subdomain, user_email, password, tickets=ticket_id)
-                if tickets == None:
-                    print('API endpoint unavailable, possibly due to invalid ticket_id. Please try again.')
-                else:
+                if tickets:
                     process_select_ticket(tickets)
-
+                else:
+                    print('API endpoint unavailable, possibly due to invalid ticket_id. Please try again.')
 
         else:
-            print('User command not recognised, please try again.')
+            print("User command not recognised, please try again or type 'menu' to see list of commands.")
         user_input = input('>').lower()
+
 if __name__ == "__main__":
-    cli_interface()
+    interface_tool()
