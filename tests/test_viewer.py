@@ -21,7 +21,9 @@ class TestCredentials(TestCase):
         '''
         Test if validate_credentials returns False if input params (subdomain, email and password) are invalid
         '''
-        fake_credentials = validate_credentials(TestCredentials.subdomain, TestCredentials.email, TestCredentials.password)
+        with mock.patch('src.viewer.requests.get') as mock_request:
+            mock_request.return_value.status_code = 404
+            fake_credentials = validate_credentials(TestCredentials.subdomain, TestCredentials.email, TestCredentials.password)
         self.assertFalse(fake_credentials)
 
     def test_true_validate_credentials(self):
@@ -65,18 +67,15 @@ class TestTicketsAPI(TestCase):
         TestTicketsAPI.email = 'tester@abc.com'
         TestTicketsAPI.password = 'tester1234'
 
-    # TODO: Prevent infinite loop
-    # def test_get_tickets_status_429(self):
-    #     '''
-    #     Test if get_tickets() can respond to status code 429 and wait accordingly
-    #     '''
-    #     with mock.patch('src.viewer.requests.get') as mock_request:
-    #         mock_request.return_value.status_code = 429
-    #         mock_request.return_value.header['retry-after'] = 1
-    #         with mock.patch('src.viewer.time.sleep') as mock_sleep:
-    #             mock_sleep.return_value = None
-    #             tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.password, 'all')
-    #             mock_sleep.assert_called_once()
+    def test_get_tickets_status_429(self):
+        '''
+        Test if get_tickets() can respond to status code 429 and wait accordingly
+        '''
+        with mock.patch('src.viewer.requests.get', side_effect = [mock.Mock(status_code=429, headers = {'retry-after': 1}), mock.Mock(status_code=404)]) as mock_request:
+            with mock.patch('src.viewer.time.sleep') as mock_sleep:
+                mock_sleep.return_value = None
+                tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.password, 'all')
+                mock_sleep.assert_called_once()
 
     def test_get_tickets_status_404(self):
         '''
@@ -96,16 +95,13 @@ class TestTicketsAPI(TestCase):
             tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.password, 'all')
             self.assertFalse(tickets)
 
-    # TODO: Prevent infinite loop
-    # def test_get_tickets_pagination(mocked_resp):
-    #     '''
-    #     Test if get_tickets() can react to next page and output a combined result
-    #     '''
-    #     with mock.patch('src.viewer.requests.get') as mock_request:
-    #         mock_request.return_value.status_code = 200
-    #         mock_request.return_value.json.return_value = {"ticket": "mock", "next_page": "mockwebsite.com"}
-    #         tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.password, 'all')
-    #         mock_request.json.assert_called_once()
+    def test_get_tickets_pagination(mocked_resp):
+        '''
+        Test if get_tickets() can react to next page and output a combined result
+        '''
+        with mock.patch('src.viewer.requests.get', side_effect = [mock.Mock(status_code=200, json=lambda : {"tickets": "mock", "next_page": "mockwebsite.com"}), mock.Mock(status_code=404)]) as mock_request:
+            tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.password, 'all')
+            mock_request.assert_called_with('mockwebsite.com', auth=('tester@abc.com', 'tester1234'), headers={'Accept': 'application/json'})
     
     def tearDown(self) -> None:
         pass

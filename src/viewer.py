@@ -70,8 +70,8 @@ def get_tickets(subdomain, email, password, tickets):
             print(f'API request trouble encountered, status code: {resp.status_code}. Please try again.')
             return False
         page_data = resp.json()
+        print(page_data)
         if tickets != 'all':
-            print(page_data)
             return page_data['ticket']
         results.extend(page_data['tickets'])
         if 'next_page' in page_data:
@@ -101,9 +101,6 @@ def display_pages_25(tickets_df):
             print(tickets_df.iloc[counter-25:counter], end='\r')
             counter -= 25
         navigation = input()
-
-
-
 
 def process_select_ticket(api_results):
     '''
