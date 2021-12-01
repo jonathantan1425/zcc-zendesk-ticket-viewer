@@ -68,7 +68,7 @@ ZCC_API_KEY=<fill in api key>
 #### Build Docker image
 Create Docker image of directory using `docker build` (for image tag: ticket-viewer)
 ```bash
-docker build ticket-viewer .
+docker build -t ticket-viewer .
 ```
 #### Run Docker image
 Run the Docker image to initialize the CLI tool\
