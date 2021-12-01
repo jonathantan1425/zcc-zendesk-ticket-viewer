@@ -1,19 +1,16 @@
-from tabulate import tabulate
+from dotenv import load_dotenv
 import json
 import numpy as np
+import os
 import requests
 import shutil
+from tabulate import tabulate
 import time
 import pandas as pd
 import sys
 
-def get_credentials(credentials_source):
-    """Assigns users' credentials (subdomain, email, password) to local variables
-
-    Parameters
-    ----------
-    credentials_source : str
-        Filename of user credentials (.json format)
+def get_credentials():
+    """Get user credentials (subdomain, email_address, oauth_token) from env var
 
     Returns
     -------
@@ -21,20 +18,22 @@ def get_credentials(credentials_source):
         Name of Zendesk subdomain
     user_email : str
         Login email credential
-    password : str
-        Login password credential
+    api_token : str
+        Login API token credential
     """    
+    
+    current_path = os.path.dirname(__file__)
+    dotenv_path = current_path.replace('/src', '/.env')
+    load_dotenv(dotenv_path)
 
-    with open(credentials_source, 'r') as credentials:
-        credentials_json = json.load(credentials)
-        subdomain = credentials_json['subdomain']
-        user_email = credentials_json['email']
-        password = credentials_json['password']
+    subdomain = os.getenv('ZCC_SUBDOMAIN')
+    user_email = os.getenv('ZCC_EMAIL_ADDRESS') + "/token"
+    api_token = os.getenv('ZCC_API_KEY')
 
-    return subdomain, user_email, password
+    return subdomain, user_email, api_token
 
-def validate_credentials(subdomain, email, password):
-    """Validates user's subdomain, email and password to ensure API endpoint is calleable
+def validate_credentials(subdomain, email, api_token):
+    """Validates user's subdomain, email and api_token to ensure API endpoint is calleable
 
     Parameters
     ----------
@@ -42,8 +41,8 @@ def validate_credentials(subdomain, email, password):
         Name of Zendesk subdomain
     email : str
         Login email credential
-    password : str
-        Login password credential
+    api_token : str
+        Login API token credential
 
     Returns
     -------
@@ -52,12 +51,13 @@ def validate_credentials(subdomain, email, password):
     """
     
     api_url = f'https://{subdomain}.zendesk.com/api/v2/tickets.json'
-    resp = requests.get(api_url, auth=(email, password))
+    headers = {'Accept': 'application/json'}
+    resp = requests.get(api_url, auth=(email, api_token), headers=headers)
 
     # verify if email and password can be authenticated against API
     if resp.status_code == 429: # if rate limit reached, retry again
         time.sleep(int(resp.headers['retry-after']) + 1)
-        resp = requests.get(api_url, auth=(email, password))
+        resp = requests.get(api_url, auth=(email, api_token), headers=headers)
 
     if resp.status_code == 200:
         return True
@@ -66,7 +66,7 @@ def validate_credentials(subdomain, email, password):
         print(f'Authentication failed, status code: {resp.status_code}')
         return False
 
-def get_tickets(subdomain, email, password, tickets):
+def get_tickets(subdomain, email, api_token, tickets):
     """Calls Zendesk Tickets API and returns tickets as requested
 
     Parameters
@@ -75,8 +75,8 @@ def get_tickets(subdomain, email, password, tickets):
         Name of Zendesk subdomain
     email : str
         Login email credential
-    password : str
-        Login password credential
+    api_token : str
+        Login API token credential
     tickets : {'all', int}
         Type of ticket to request
         * all: Request all tickets
@@ -99,7 +99,7 @@ def get_tickets(subdomain, email, password, tickets):
     max_tickets = 0
     pages_downloaded = 0
     while api_url:
-        resp = requests.get(api_url, auth=(email, password), headers=headers)
+        resp = requests.get(api_url, auth=(email, api_token), headers=headers)
         if resp.status_code == 429: # catch rate limit exceeded, although normal usage should not exceed limit of 400/minute
             print('Rate limited, reattempting shortly')
             time.sleep(int(resp.headers['retry-after']) + 1)
@@ -275,14 +275,13 @@ def load_select_ticket(user_command):
 def interface_tool():
     """Presents interface for Zendesk Ticket Viewer
     
-    1. Gets user credentials from user_credentials.json
+    1. Gets user credentials from config.env
     2. Request user input for viewing type (menu, all, select x, quit)
     3. Returns appropriate user request based on input
     """
 
-    credentials_source = 'user_credentials.json'
-    subdomain, user_email, password = get_credentials(credentials_source)
-    # prompt user to modify user_credentials.json if invalid user credentials
+    subdomain, user_email, password = get_credentials()
+    # prompt user to modify config.env if invalid user credentials
     if not validate_credentials(subdomain, user_email, password):
         exit('Exiting Ticket Viewer...')
 

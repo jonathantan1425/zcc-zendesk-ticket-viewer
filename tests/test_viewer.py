@@ -1,30 +1,44 @@
+import contextlib
+import io
 from unittest import TestCase, mock
 from pandas.api.types import is_string_dtype
-import contextlib, io
+import os
 from src.viewer import *
 
 class TestCredentials(TestCase):
     def setUp(self) -> None:
         TestCredentials.subdomain = 'testerdomain'
         TestCredentials.email = 'tester@abc.com'
-        TestCredentials.password = 'tester1234'
+        TestCredentials.api_key = 'testAPIkey'
 
     def test_get_credentials_returns_str(self):
-        subdomain, email, password = get_credentials('tests/test_user_credentials.json')
+        subdomain, email, password = get_credentials()
         self.assertTrue(type(subdomain) == str)
         self.assertTrue(type(email) == str)
         self.assertTrue(type(password) == str)
+
+    
+    def test_get_credentials_load_env(self):
+        with mock.patch('src.viewer.load_dotenv') as mock_load_dotenv:
+            with mock.patch('src.viewer.os.getenv') as mock_getenv:
+                subdomain, email, password = get_credentials()
+                mock_load_dotenv.assert_called_once()
+                env_calls = [mock.call('ZCC_SUBDOMAIN'),
+                            mock.call('ZCC_EMAIL_ADDRESS'),
+                            mock.call().__add__('/token'),
+                            mock.call('ZCC_API_KEY')]
+                mock_getenv.assert_has_calls(env_calls)
     
     def test_validate_credentials_fail(self):
         with mock.patch('src.viewer.requests.get') as mock_request:
             mock_request.return_value.status_code = 404
-            fake_credentials = validate_credentials(TestCredentials.subdomain, TestCredentials.email, TestCredentials.password)
+            fake_credentials = validate_credentials(TestCredentials.subdomain, TestCredentials.email, TestCredentials.api_key)
         self.assertFalse(fake_credentials)
 
     def test_validate_credentials_pass(self):
         with mock.patch('src.viewer.requests.get') as mock_request:
             mock_request.return_value.status_code = 200
-            true_credentials = validate_credentials(TestCredentials.subdomain, TestCredentials.email, TestCredentials.password)
+            true_credentials = validate_credentials(TestCredentials.subdomain, TestCredentials.email, TestCredentials.api_key)
             mock_request.assert_called_once()
         self.assertTrue(true_credentials)
     
@@ -51,40 +65,40 @@ class TestTicketsAPI(TestCase):
     def setUp(self):
         TestTicketsAPI.subdomain = 'testerdomain'
         TestTicketsAPI.email = 'tester@abc.com'
-        TestTicketsAPI.password = 'tester1234'
+        TestTicketsAPI.api_key = 'testAPIkey'
 
     def test_get_tickets_status_429(self):
         with mock.patch('src.viewer.requests.get', side_effect = [mock.Mock(status_code=429, headers = {'retry-after': 1}), mock.Mock(status_code=404)]) as mock_request:
             with mock.patch('src.viewer.time.sleep') as mock_sleep:
                 mock_sleep.return_value = None
-                tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.password, 'all')
+                tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.api_key, 'all')
                 mock_sleep.assert_called_once()
 
     def test_get_tickets_status_404(self):
         with mock.patch('src.viewer.requests.get') as mock_request:
             mock_request.return_value.status_code = 404
-            tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.password, 'all')
+            tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.api_key, 'all')
             self.assertFalse(tickets)
 
     def test_get_tickets_status_not_200(self):
         with mock.patch('src.viewer.requests.get') as mock_request:
             mock_request.return_value.status_code = 555
-            tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.password, 'all')
+            tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.api_key, 'all')
             self.assertFalse(tickets)
             
     def test_get_tickets_return_single_ticket(self):
         with mock.patch('src.viewer.requests.get') as mock_request:
             mock_request.return_value.status_code = 200
             mock_request.return_value.json.return_value = {"ticket": {"mock ticket"}}
-            tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.password, 'select 1')
+            tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.api_key, 'select 1')
             self.assertEqual(tickets, {"mock ticket"})
 
     def test_get_tickets_paginate_correctly(self):
         with mock.patch('src.viewer.requests.get', 
                         side_effect = [mock.Mock(status_code=200, json=lambda : {"tickets": {"mock"}, "next_page": "mockwebsite.com", "count": 2}),
                                        mock.Mock(status_code=200, json=lambda : {"tickets": {"mock2"}, "count": 2})]) as mock_request:
-            tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.password, 'all')
-            mock_request.assert_called_with('mockwebsite.com', auth=('tester@abc.com', 'tester1234'), headers={'Accept': 'application/json'})
+            tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.api_key, 'all')
+            mock_request.assert_called_with('mockwebsite.com', auth=('tester@abc.com', 'testAPIkey'), headers={'Accept': 'application/json'})
             self.assertEqual(tickets, ["mock", "mock2"])
         
     def test_get_tickets_print_correct_percent_downloaded(self):
@@ -92,7 +106,7 @@ class TestTicketsAPI(TestCase):
                         side_effect = [mock.Mock(status_code=200, json=lambda : {"tickets": {"mock"}, "next_page": "mockwebsite.com", "count": 2}),
                                        mock.Mock(status_code=200, json=lambda : {"tickets": {"mock2"}, "count": 2})]) as mock_request:
             with mock.patch('builtins.print') as mocked_print:
-                _ = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.password, 'all')
+                _ = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.api_key, 'all')
                 calls = [mock.call('50.0% downloaded...', end='\r'), mock.call('100.0% downloaded...', end='\r')]
                 mocked_print.assert_has_calls(calls)
         
