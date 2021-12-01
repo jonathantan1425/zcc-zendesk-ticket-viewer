@@ -312,6 +312,8 @@ def interface_tool():
         else:
             print("User command not recognised, please try again or type 'menu' to see list of commands.")
         user_input = input('-> ').lower()
+    print('Thank you for using the Zendesk Ticket Viewer by Jonathan Tan.')
+
 
 if __name__ == "__main__":
     pd.options.display.float_format = '{:.0f}'.format
