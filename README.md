@@ -1,4 +1,4 @@
-dpeoen# ZCC Zendesk Ticket Viewer
+# ZCC Zendesk Ticket Viewer
 A python-based CLI tool to view tickets via Zendesk's API.
 
 Users can:
