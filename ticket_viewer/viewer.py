@@ -21,10 +21,8 @@ def get_credentials():
     api_token : str
         Login API token credential
     """    
-    
-    current_path = os.path.dirname(__file__)
-    dotenv_path = current_path.replace('/src', '/.env')
-    load_dotenv(dotenv_path)
+
+    load_dotenv()
 
     subdomain = os.getenv('ZCC_SUBDOMAIN')
     user_email = os.getenv('ZCC_EMAIL_ADDRESS') + "/token"
@@ -54,7 +52,7 @@ def validate_credentials(subdomain, email, api_token):
     headers = {'Accept': 'application/json'}
     resp = requests.get(api_url, auth=(email, api_token), headers=headers)
 
-    # verify if email and password can be authenticated against API
+    # verify if email and api_token can be authenticated against API
     if resp.status_code == 429: # if rate limit reached, retry again
         time.sleep(int(resp.headers['retry-after']) + 1)
         resp = requests.get(api_url, auth=(email, api_token), headers=headers)
@@ -280,9 +278,9 @@ def interface_tool():
     3. Returns appropriate user request based on input
     """
 
-    subdomain, user_email, password = get_credentials()
+    subdomain, user_email, api_token = get_credentials()
     # prompt user to modify config.env if invalid user credentials
-    if not validate_credentials(subdomain, user_email, password):
+    if not validate_credentials(subdomain, user_email, api_token):
         exit('Exiting Ticket Viewer...')
 
     # successful authorization    
@@ -297,7 +295,7 @@ def interface_tool():
 
         # request all tickets if input = all
         elif user_input == 'all':
-            tickets = get_tickets(subdomain, user_email, password, tickets='all')
+            tickets = get_tickets(subdomain, user_email, api_token, tickets='all')
             if tickets:
                 tickets_df = process_all_tickets(tickets)
                 check_terminal_window()
@@ -307,7 +305,7 @@ def interface_tool():
         elif user_input[0:7] == 'select ':
             ticket_id = load_select_ticket(user_input)
             if ticket_id:
-                tickets = get_tickets(subdomain, user_email, password, tickets=ticket_id)
+                tickets = get_tickets(subdomain, user_email, api_token, tickets=ticket_id)
                 if tickets:
                     process_select_ticket(tickets)
                     

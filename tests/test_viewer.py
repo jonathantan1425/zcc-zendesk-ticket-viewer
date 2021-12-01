@@ -3,7 +3,7 @@ import io
 from unittest import TestCase, mock
 from pandas.api.types import is_string_dtype
 import os
-from src.viewer import *
+from ticket_viewer.viewer import *
 
 class TestCredentials(TestCase):
     def setUp(self) -> None:
@@ -19,8 +19,8 @@ class TestCredentials(TestCase):
 
     
     def test_get_credentials_load_env(self):
-        with mock.patch('src.viewer.load_dotenv') as mock_load_dotenv:
-            with mock.patch('src.viewer.os.getenv') as mock_getenv:
+        with mock.patch('ticket_viewer.viewer.load_dotenv') as mock_load_dotenv:
+            with mock.patch('ticket_viewer.viewer.os.getenv') as mock_getenv:
                 subdomain, email, password = get_credentials()
                 mock_load_dotenv.assert_called_once()
                 env_calls = [mock.call('ZCC_SUBDOMAIN'),
@@ -30,13 +30,13 @@ class TestCredentials(TestCase):
                 mock_getenv.assert_has_calls(env_calls)
     
     def test_validate_credentials_fail(self):
-        with mock.patch('src.viewer.requests.get') as mock_request:
+        with mock.patch('ticket_viewer.viewer.requests.get') as mock_request:
             mock_request.return_value.status_code = 404
             fake_credentials = validate_credentials(TestCredentials.subdomain, TestCredentials.email, TestCredentials.api_key)
         self.assertFalse(fake_credentials)
 
     def test_validate_credentials_pass(self):
-        with mock.patch('src.viewer.requests.get') as mock_request:
+        with mock.patch('ticket_viewer.viewer.requests.get') as mock_request:
             mock_request.return_value.status_code = 200
             true_credentials = validate_credentials(TestCredentials.subdomain, TestCredentials.email, TestCredentials.api_key)
             mock_request.assert_called_once()
@@ -68,33 +68,33 @@ class TestTicketsAPI(TestCase):
         TestTicketsAPI.api_key = 'testAPIkey'
 
     def test_get_tickets_status_429(self):
-        with mock.patch('src.viewer.requests.get', side_effect = [mock.Mock(status_code=429, headers = {'retry-after': 1}), mock.Mock(status_code=404)]) as mock_request:
-            with mock.patch('src.viewer.time.sleep') as mock_sleep:
+        with mock.patch('ticket_viewer.viewer.requests.get', side_effect = [mock.Mock(status_code=429, headers = {'retry-after': 1}), mock.Mock(status_code=404)]) as mock_request:
+            with mock.patch('ticket_viewer.viewer.time.sleep') as mock_sleep:
                 mock_sleep.return_value = None
                 tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.api_key, 'all')
                 mock_sleep.assert_called_once()
 
     def test_get_tickets_status_404(self):
-        with mock.patch('src.viewer.requests.get') as mock_request:
+        with mock.patch('ticket_viewer.viewer.requests.get') as mock_request:
             mock_request.return_value.status_code = 404
             tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.api_key, 'all')
             self.assertFalse(tickets)
 
     def test_get_tickets_status_not_200(self):
-        with mock.patch('src.viewer.requests.get') as mock_request:
+        with mock.patch('ticket_viewer.viewer.requests.get') as mock_request:
             mock_request.return_value.status_code = 555
             tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.api_key, 'all')
             self.assertFalse(tickets)
             
     def test_get_tickets_return_single_ticket(self):
-        with mock.patch('src.viewer.requests.get') as mock_request:
+        with mock.patch('ticket_viewer.viewer.requests.get') as mock_request:
             mock_request.return_value.status_code = 200
             mock_request.return_value.json.return_value = {"ticket": {"mock ticket"}}
             tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.api_key, 'select 1')
             self.assertEqual(tickets, {"mock ticket"})
 
     def test_get_tickets_paginate_correctly(self):
-        with mock.patch('src.viewer.requests.get', 
+        with mock.patch('ticket_viewer.viewer.requests.get', 
                         side_effect = [mock.Mock(status_code=200, json=lambda : {"tickets": {"mock"}, "next_page": "mockwebsite.com", "count": 2}),
                                        mock.Mock(status_code=200, json=lambda : {"tickets": {"mock2"}, "count": 2})]) as mock_request:
             tickets = get_tickets(TestTicketsAPI.subdomain, TestTicketsAPI.email, TestTicketsAPI.api_key, 'all')
@@ -102,7 +102,7 @@ class TestTicketsAPI(TestCase):
             self.assertEqual(tickets, ["mock", "mock2"])
         
     def test_get_tickets_print_correct_percent_downloaded(self):
-        with mock.patch('src.viewer.requests.get', 
+        with mock.patch('ticket_viewer.viewer.requests.get', 
                         side_effect = [mock.Mock(status_code=200, json=lambda : {"tickets": {"mock"}, "next_page": "mockwebsite.com", "count": 2}),
                                        mock.Mock(status_code=200, json=lambda : {"tickets": {"mock2"}, "count": 2})]) as mock_request:
             with mock.patch('builtins.print') as mocked_print:
@@ -176,7 +176,7 @@ class TestTicketProcessing(TestCase):
         self.assertEqual(output_after, '\x1b[1A\x1b[2K')
     
     def test_check_terminal_window_too_short(self):
-        with mock.patch('src.viewer.shutil.get_terminal_size') as mock_terminal:
+        with mock.patch('ticket_viewer.viewer.shutil.get_terminal_size') as mock_terminal:
             mock_terminal.return_value.lines = 1
             with mock.patch('builtins.input') as mock_input:
                 mock_input.return_value = 'Y'
@@ -186,7 +186,7 @@ class TestTicketProcessing(TestCase):
     def test_display_pages_25(self):
         test_df = pd.DataFrame({'id':[i for i in range(1,46)], 'subject': ['sub'+str(i) for i in range(1,46)]}).set_index('id')
         with mock.patch('builtins.input', side_effect = ['>', '>', '>', '<', '<', '<' , '<', '>', 'q']) as mock_input:
-            with mock.patch('src.viewer.delete_terminal_lines') as mock_delete_terminal_lines:            
+            with mock.patch('ticket_viewer.viewer.delete_terminal_lines') as mock_delete_terminal_lines:            
                 display_pages_25(test_df)
                 calls = [mock.call(1),
                          mock.call(25+4),
@@ -215,7 +215,7 @@ class TestTicketProcessing(TestCase):
                       'sharing_agreement_ids': [], 'fields': [], 'followup_ids': [], 'ticket_form_id': None, 'brand_id': None, 'allow_channelback': False, 'allow_attachments': True}]
                       
         
-        with mock.patch('src.viewer.shutil.get_terminal_size') as mock_terminal_columns:
+        with mock.patch('ticket_viewer.viewer.shutil.get_terminal_size') as mock_terminal_columns:
             mock_terminal_columns.return_value.columns = 1
             with mock.patch('builtins.print') as mocked_print:
                 for test_case in test_cases:
@@ -233,20 +233,20 @@ class TestIntegrationInterface(TestCase):
         1. Call all possible commands ('menu', 'all', 'select 5', 'hello world', 'quit') with fail criteria on ticket commands ('all' and 'select 5')
         2. Call ticket commands ('all' and 'select 5') with pass criteria
         """
-        with mock.patch('src.viewer.get_credentials') as mock_get_credentials:
+        with mock.patch('ticket_viewer.viewer.get_credentials') as mock_get_credentials:
             mock_get_credentials.return_value = 'testerdomain', 'tester@abc.com', 'tester1234'
-            with mock.patch('src.viewer.validate_credentials') as mock_validate_credentials:
+            with mock.patch('ticket_viewer.viewer.validate_credentials') as mock_validate_credentials:
                 mock_validate_credentials.return_value = True
                 with mock.patch('builtins.input',
                                 side_effect = ['menu', 'all', 'select 5', 'hello world', 'quit']) as mock_input:
-                    with mock.patch('src.viewer.menu_action') as mock_menu_action:
-                        with mock.patch('src.viewer.get_tickets') as mock_get_tickets:
+                    with mock.patch('ticket_viewer.viewer.menu_action') as mock_menu_action:
+                        with mock.patch('ticket_viewer.viewer.get_tickets') as mock_get_tickets:
                             mock_get_tickets.return_value = False
-                            with mock.patch('src.viewer.process_all_tickets') as mock_process_all_tickets:
-                                with mock.patch('src.viewer.load_select_ticket') as mock_load_select_ticket:
-                                    with mock.patch('src.viewer.get_tickets') as mock_get_tickets:
+                            with mock.patch('ticket_viewer.viewer.process_all_tickets') as mock_process_all_tickets:
+                                with mock.patch('ticket_viewer.viewer.load_select_ticket') as mock_load_select_ticket:
+                                    with mock.patch('ticket_viewer.viewer.get_tickets') as mock_get_tickets:
                                         mock_get_tickets.return_value = False
-                                        with mock.patch('src.viewer.process_select_ticket') as mock_process_select_ticket:
+                                        with mock.patch('ticket_viewer.viewer.process_select_ticket') as mock_process_select_ticket:
                                             with mock.patch('builtins.print') as mock_print:
                                                 interface_tool()
                                                 mock_get_credentials.assert_called_once()
@@ -260,13 +260,13 @@ class TestIntegrationInterface(TestCase):
                                                                mock.call("Type 'menu' to view ticket options or 'quit' to exit the viewer\n"),
                                                                mock.call("User command not recognised, please try again or type 'menu' to see list of commands.")]
                                                 mock_print.assert_has_calls(print_calls)
-        with mock.patch('src.viewer.get_credentials') as mock_get_credentials:
+        with mock.patch('ticket_viewer.viewer.get_credentials') as mock_get_credentials:
             mock_get_credentials.return_value = 'testerdomain', 'tester@abc.com', 'tester1234'
-            with mock.patch('src.viewer.validate_credentials') as mock_validate_credentials:
+            with mock.patch('ticket_viewer.viewer.validate_credentials') as mock_validate_credentials:
                 mock_validate_credentials.return_value = True
                 with mock.patch('builtins.input',
                                 side_effect = ['all', '>', '<', 'q', 'select 5', 'quit']) as mock_input:
-                    with mock.patch('src.viewer.get_tickets') as mock_get_tickets:
+                    with mock.patch('ticket_viewer.viewer.get_tickets') as mock_get_tickets:
                             all_test_case=[{'id': 1, 'subject': 'sub1', 'priority': None, 'status': 'open', 'submitter_id': 33, 'assignee_id': 44, 'organization_id': 55},
                                            {'id': 2, 'subject': 'sub2', 'priority': 'low', 'status': 'closed', 'submitter_id': 35, 'assignee_id': 44, 'organization_id': 55},
                                            {'id': 3, 'subject': 'sub3', 'priority': 'med', 'status': 'open', 'submitter_id': 33, 'assignee_id': 46, 'organization_id': 55},
@@ -278,13 +278,13 @@ class TestIntegrationInterface(TestCase):
                                            {'id': 9, 'subject': 'sub9', 'priority': 'high', 'status': 'closed', 'submitter_id': 33, 'assignee_id': 48, 'organization_id': 55},
                                            {'id': 10, 'subject': 'sub10', 'priority': 'low', 'status': 'open', 'submitter_id': 39, 'assignee_id': 42, 'organization_id': 55}]
                             mock_get_tickets.return_value = all_test_case
-                            with mock.patch('src.viewer.process_all_tickets') as mock_process_all_tickets:
-                                with mock.patch('src.viewer.check_terminal_window') as mock_check_terminal_window:
-                                    with mock.patch('src.viewer.display_pages_25') as mock_display_pages_25:
-                                        with mock.patch('src.viewer.load_select_ticket') as mock_load_select_ticket:
+                            with mock.patch('ticket_viewer.viewer.process_all_tickets') as mock_process_all_tickets:
+                                with mock.patch('ticket_viewer.viewer.check_terminal_window') as mock_check_terminal_window:
+                                    with mock.patch('ticket_viewer.viewer.display_pages_25') as mock_display_pages_25:
+                                        with mock.patch('ticket_viewer.viewer.load_select_ticket') as mock_load_select_ticket:
                                             mock_load_select_ticket.return_value = all_test_case[0]
-                                            with mock.patch('src.viewer.get_tickets') as mock_get_tickets:
-                                                with mock.patch('src.viewer.process_select_ticket') as mock_process_select_ticket:
+                                            with mock.patch('ticket_viewer.viewer.get_tickets') as mock_get_tickets:
+                                                with mock.patch('ticket_viewer.viewer.process_select_ticket') as mock_process_select_ticket:
                                                     interface_tool()
                                                     mock_get_credentials.assert_called_once()
                                                     mock_validate_credentials.assert_called_once()
