@@ -1,4 +1,4 @@
-# ZCC Zendesk Ticket Viewer
+dpeoen# ZCC Zendesk Ticket Viewer
 A python-based CLI tool to view tickets via Zendesk's API.
 
 Users can:
@@ -21,7 +21,10 @@ __Notes__
 
 ## Prerequisites
 * Recommended platform - Linux (Ubuntu 16.04)
-* Docker installed
+* Either
+   * Docker installed OR
+   * Python 3.8 and Pip installed
+
 ### Verify Docker
 Run `docker` in terminal to check if Docker is installed. An example of a positive response:
 ```bash
