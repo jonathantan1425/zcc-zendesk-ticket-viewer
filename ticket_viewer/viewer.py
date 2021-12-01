@@ -283,9 +283,9 @@ def interface_tool():
     if not validate_credentials(subdomain, user_email, api_token):
         exit('Exiting Ticket Viewer...')
 
-    # successful authorization    
-    print(f'Welcome to Zendesk Ticket Viewer. You are currently connected to {subdomain} as {user_email}.')
-    print("Type 'menu' to view ticket options or 'quit' to exit the viewer\n")
+    # successful authorization
+    print(f'Welcome to Zendesk Ticket Viewer. You are currently connected to {subdomain} as {user_email.rstrip("/token")}.')
+    print("Type 'menu' to view ticket options or 'quit' to exit the viewer.\n")
 
     user_input = input('-> ').lower()
     while user_input != 'quit':

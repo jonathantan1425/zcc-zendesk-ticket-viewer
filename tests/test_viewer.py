@@ -257,7 +257,7 @@ class TestIntegrationInterface(TestCase):
                                                 self.assertEqual(mock_get_tickets.call_count, 2)
                                                 mock_process_select_ticket.assert_not_called()
                                                 print_calls = [mock.call('Welcome to Zendesk Ticket Viewer. You are currently connected to testerdomain as tester@abc.com.'),
-                                                               mock.call("Type 'menu' to view ticket options or 'quit' to exit the viewer\n"),
+                                                               mock.call("Type 'menu' to view ticket options or 'quit' to exit the viewer.\n"),
                                                                mock.call("User command not recognised, please try again or type 'menu' to see list of commands.")]
                                                 mock_print.assert_has_calls(print_calls)
         with mock.patch('ticket_viewer.viewer.get_credentials') as mock_get_credentials:
