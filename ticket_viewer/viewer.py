@@ -20,7 +20,7 @@ def get_credentials():
         Login email credential
     api_token : str
         Login API token credential
-    """    
+    """
 
     load_dotenv()
 
@@ -168,7 +168,7 @@ def check_terminal_window():
 
     terminal_rows = shutil.get_terminal_size().lines
     while terminal_rows < 31:
-        print("Current terminal window size is too short. It is recommended to increase the height for the best viewing experience. Type 'Y' to continue.")
+        print("Current terminal window size is too short. Increase the height for the best viewing experience.\nType 'Y' to continue.")
         user_input = input().upper()
         if user_input == 'Y':
             break
@@ -240,7 +240,7 @@ def process_select_ticket(api_results):
     print(divider)
 
 def menu_action():
-    """Prints list of commands
+    """Prints list of available user commands
     """
 
     print('Available user commands:')
@@ -312,9 +312,8 @@ def interface_tool():
         else:
             print("User command not recognised, please try again or type 'menu' to see list of commands.")
         user_input = input('-> ').lower()
-    print('Thank you for using the Zendesk Ticket Viewer by Jonathan Tan.')
+    print('Thank you for using the Zendesk Ticket Viewer')
 
 
 if __name__ == "__main__":
-    pd.options.display.float_format = '{:.0f}'.format
     interface_tool()
